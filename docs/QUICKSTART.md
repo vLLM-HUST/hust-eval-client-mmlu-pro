@@ -9,7 +9,7 @@
 
 | 要有 | 说明 |
 |---|---|
-| 这个项目的代码 | 目前只在本地目录,没有提交或推送到任何远程;先向项目负责人要 |
+| 这个项目的代码 | `https://github.com/vLLM-HUST/hust-eval-client-mmlu-pro`(目前是**私有**仓库,需要被授予访问权限) |
 | 一个在运行的 OpenAI 兼容服务 | 地址、端口(`--base-url` 不要带 `/v1`)、`served-model-name` |
 | 运维提供的服务证据 | 启动日志的**副本**、服务的**实际启动命令**(argv)、镜像 digest(没有就留空) |
 | 模型目录 | 用它的分词器和 chat template 来冻结提示 |
@@ -20,6 +20,7 @@
 ## 1. 安装
 
 ```bash
+git clone https://github.com/vLLM-HUST/hust-eval-client-mmlu-pro.git
 cd hust-eval-client-mmlu-pro
 python3 -m venv .venv && . .venv/bin/activate
 pip install -U pip            # Mac 自带 Python 的 pip 太旧,不升级的话下一行会失败
