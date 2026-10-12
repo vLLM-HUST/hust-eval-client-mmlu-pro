@@ -1,0 +1,4 @@
+from hust_eval_mmlu_pro.cli import main
+
+if __name__ == "__main__":
+    main()

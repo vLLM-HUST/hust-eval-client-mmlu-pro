@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hust-eval-client-mmlu-pro"
+version = "0.1.0"
+description = "MMLU-Pro client for an already-running OpenAI-compatible vLLM server: send requests, score, hash and seal evidence. Never starts a server."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []          # core is standard library only
+
+[project.optional-dependencies]
+# only needed by `prepare` and `mmlu-pro materialize` (they read parquet and tokenise)
+prepare = ["pyarrow==19.0.1", "transformers"]
+
+[project.scripts]
+hust-eval-mmlu-pro = "hust_eval_mmlu_pro.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
