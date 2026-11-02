@@ -37,22 +37,25 @@ Names are per project so several can be installed in one environment: this proje
 cd hust-eval-client-mmlu-pro
 python3 -m venv .venv && . .venv/bin/activate
 pip install -U pip                # REQUIRED on the system Python of macOS (pip 21): `pip install -e` fails without it
-pip install -e .                  # core is standard library only
-pip install -e '.[prepare]'       # only for `mmlu-pro prepare` and `mmlu-pro materialize` (pyarrow, transformers)
+pip install -e .                  # client plus pyarrow, transformers and jinja2 (needed by prepare/materialize)
 hust-eval-mmlu-pro --help         # or: python -m hust_eval_mmlu_pro --help
 ```
 
 Python 3.9+. `mmlu-pro bench` additionally needs the `vllm` command on the client machine (it runs
 `vllm bench serve`, which is a client).
 
-**Pin `transformers` to the version you froze with.** The frozen prompts are token IDs produced by the model's chat
+**Record the `transformers` version you froze with.** The frozen prompts are token IDs produced by the model's chat
 template through `transformers`; another version may render the template differently and give different IDs, i.e.
-a different plan. The first plan here was frozen with `transformers==5.14.1` and `pyarrow==19.0.1`; after
-`prepare`, compare the `cases.json` SHA-256 with the one you expect (for the same model, parquet and reference, the
-first plan's was `f77a7e5e6fd96fbbf46be7ab11f360309554105e97921805f02d1c93fc05fcf3`).
+a different plan. `pyproject.toml` only sets floors (`transformers>=5.14.1`, `pyarrow>=19.0.1`, `jinja2>=3.1.0`), so
+the versions actually in use come from the environment, and `receipt` writes them into `receipt/client.json`
+(`client_packages`) next to the Python version. The first plan here was frozen with `transformers==5.14.1` and
+`pyarrow==19.0.1`; after `prepare`, compare the `cases.json` SHA-256 with the one you expect (for the same model,
+parquet and reference, the first plan's was
+`f77a7e5e6fd96fbbf46be7ab11f360309554105e97921805f02d1c93fc05fcf3`).
 
 Installation was verified with `pip install -e .` and `pip install .` into a fresh venv on Python 3.9 after
-upgrading pip. The `[prepare]` extra was not installed from scratch in a clean environment.
+upgrading pip, at a time when the default dependencies were empty. The current default set (pyarrow, transformers,
+jinja2) was installed into fresh venvs on Python 3.11.6 and 3.12.13; Python 3.9 was not re-checked afterwards.
 
 ## Inputs you must provide
 

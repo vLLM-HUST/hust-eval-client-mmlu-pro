@@ -8,3 +8,6 @@ dist/
 # run directories, plans and result tables are evidence, not source
 runs/
 *.xlsx
+
+# history evaluation results
+.history
