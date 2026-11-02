@@ -8,11 +8,13 @@ version = "0.1.0"
 description = "MMLU-Pro client for an already-running OpenAI-compatible vLLM server: send requests, score, hash and seal evidence. Never starts a server."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = []          # core is standard library only
-
-[project.optional-dependencies]
-# only needed by `prepare` and `mmlu-pro materialize` (they read parquet and tokenise)
-prepare = ["pyarrow==19.0.1", "transformers"]
+dependencies = [
+    # `mmlu-pro prepare` and `mmlu-pro materialize` read the pinned parquet and render the chat template.
+    # Floors, not pins: the frozen prompts depend on the actual versions, which `receipt` records.
+    "pyarrow>=19.0.1",
+    "transformers>=5.14.1",
+    "jinja2>=3.1.0",          # transformers does not declare it, but apply_chat_template fails without it
+]
 
 [project.scripts]
 hust-eval-mmlu-pro = "hust_eval_mmlu_pro.cli:main"

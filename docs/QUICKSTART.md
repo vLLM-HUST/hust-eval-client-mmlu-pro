@@ -24,13 +24,14 @@ git clone https://github.com/vLLM-HUST/hust-eval-client-mmlu-pro.git
 cd hust-eval-client-mmlu-pro
 python3 -m venv .venv && . .venv/bin/activate
 pip install -U pip            # Mac 自带 Python 的 pip 太旧,不升级的话下一行会失败
-pip install -e '.[prepare]'
-pip install 'transformers==5.14.1' 'pyarrow==19.0.1'
+pip install -e .              # 会一并装上 pyarrow / transformers / jinja2(prepare 与 materialize 需要)
 hust-eval-mmlu-pro --version
 ```
 
-`transformers` 的版本要和冻结提示时一致:提示是分词器按 chat template 渲染出的 token ID,版本不同可能渲染不同,
-得到的就是另一份计划。升级 pip 之后的安装(`-e` 和普通安装)已验证;`[prepare]` 额外依赖没有在全新环境里从头装过(未验证)。
+`pyproject.toml` 里给的是**下限**(`transformers>=5.14.1`、`pyarrow>=19.0.1`、`jinja2>=3.1.0`),不是钉死的版本;而冻结提示
+对实际版本敏感 —— 提示是分词器按 chat template 渲染出的 token ID,版本不同可能渲染不同,得到的就是另一份计划。所以真正
+用的是哪一版要记下来:`receipt` 会把 `pyarrow`/`transformers`/`vllm` 的实际版本写进 `receipt/client.json` 的
+`client_packages`。第一次冻结用的组合是 `transformers==5.14.1` + `pyarrow==19.0.1`,要对齐这个哈希就先装这两版。
 
 ## 2. 取参考代码
 
