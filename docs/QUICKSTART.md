@@ -51,6 +51,9 @@ hust-eval-mmlu-pro mmlu-pro prepare --assets <parquet目录> --model-path <模�
 ```
 
 - 最后应打印 `12032 tasks of 12032`。想先试个子集,加 `--per-category 5`。
+- plan 里**没有**并发这一项:冻结的工件无法强制"客户端同时发几条",所以并发属于这一次运行的记录
+  (`run.<ts>.<seq>.json` 里的 `concurrency`),而不属于评测定义。想让工具替你核对,`run` 加
+  `--expected-concurrency N`;`--concurrency` 与之不同时会写进 `deviations`。
 - 输出目录必须不存在,已存在会报错。
 - **核对 `plan/cases.json` 的 SHA-256**(`hust-eval-mmlu-pro hash-file plan/cases.json`)。同样的模型、数据和参考,
   我们第一次冻结的结果是 `f77a7e5e6fd96fbbf46be7ab11f360309554105e97921805f02d1c93fc05fcf3`。

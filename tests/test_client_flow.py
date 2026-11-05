@@ -13,7 +13,7 @@ PROFILE = Path(__file__).resolve().parents[1] / "examples" / "profile.b0_35b.jso
 
 
 class RunTests(unittest.TestCase):
-    def test_run_scores_and_records_deviations(self):
+    def test_run_scores_without_inventing_a_deviation(self):
         with tempfile.TemporaryDirectory() as d, StubServer() as srv:
             plan = make_plan(Path(d))
             out = Path(d) / "out"
@@ -26,12 +26,60 @@ class RunTests(unittest.TestCase):
             self.assertTrue(srv.last_body["stream"])
             meta = json.loads(next(out.glob("run.*.json")).read_text())
             self.assertEqual(meta["concurrency"], 3)
-            self.assertEqual(meta["upstream_concurrency"], 1)
-            self.assertTrue(meta["deviations"])
+            self.assertIsNone(meta["expected_concurrency"])  # no target requested, so nothing to deviate from
+            self.assertEqual(meta["deviations"], [])
+            self.assertNotIn("concurrency", meta["generation"])  # a plan cannot declare a run condition
             self.assertEqual(len(meta["scorer_sha256"]), 64)
             self.assertFalse(meta["legacy_plan"])
             with self.assertRaises(FileExistsError):
                 run.run(str(plan), str(out), srv.url, "stub-model", log=lambda m: None)
+
+    def test_expected_concurrency_mismatch_is_structured(self):
+        with tempfile.TemporaryDirectory() as d, StubServer() as srv:
+            plan = make_plan(Path(d))
+            out = Path(d) / "out"
+            run.run(str(plan), str(out), srv.url, "stub-model", concurrency=3, expected_concurrency=1,
+                    log=lambda m: None)
+            meta = json.loads(next(out.glob("run.*.json")).read_text())
+            self.assertEqual(meta["deviations"], [{"field": "concurrency", "expected": 1, "actual": 3,
+                                                  "source": "--expected-concurrency"}])
+            rep = summary.build_report(str(plan), str(out))
+            self.assertEqual(len(rep["run_meta"]["deviations"]), 1)
+
+    def test_matching_expected_concurrency_records_nothing(self):
+        with tempfile.TemporaryDirectory() as d, StubServer() as srv:
+            plan = make_plan(Path(d))
+            out = Path(d) / "out"
+            run.run(str(plan), str(out), srv.url, "stub-model", concurrency=3, expected_concurrency=3,
+                    log=lambda m: None)
+            meta = json.loads(next(out.glob("run.*.json")).read_text())
+            self.assertEqual(meta["expected_concurrency"], 3)
+            self.assertEqual(meta["deviations"], [])
+            rep = summary.build_report(str(plan), str(out))
+            self.assertEqual(rep["run_meta"]["deviations"], [])
+            self.assertEqual(rep["run_meta"]["invocations"], 1)
+
+    def test_resume_with_another_concurrency_is_reported(self):
+        with tempfile.TemporaryDirectory() as d, StubServer() as srv:
+            plan = make_plan(Path(d))
+            out = Path(d) / "out"
+            run.run(str(plan), str(out), srv.url, "stub-model", concurrency=4, limit=2, log=lambda m: None)
+            run.run(str(plan), str(out), srv.url, "stub-model", concurrency=1, resume=True, log=lambda m: None)
+            metas = [json.loads(p.read_text()) for p in sorted(out.glob("run.*.json"))]
+            self.assertEqual(len(metas), 2)  # two invocations inside one second still get their own file
+            self.assertEqual(metas[0]["deviations"], [])
+            self.assertEqual(metas[1]["deviations"], [{"field": "concurrency", "expected": 4, "actual": 1,
+                                                      "source": "earlier invocation " + sorted(
+                                                          out.glob("run.*.json"))[0].name}])
+            rep = summary.build_report(str(plan), str(out))
+            self.assertEqual(rep["run_meta"]["invocations"], 2)
+            self.assertEqual(len(rep["run_meta"]["deviations"]), 1)
+
+    def test_concurrency_below_one_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d, StubServer() as srv:
+            plan = make_plan(Path(d))
+            with self.assertRaises(ValueError):
+                run.run(str(plan), str(Path(d) / "out"), srv.url, "stub-model", concurrency=0, log=lambda m: None)
 
     def test_failed_requests_are_kept_and_scored_incorrect(self):
         with tempfile.TemporaryDirectory() as d:
