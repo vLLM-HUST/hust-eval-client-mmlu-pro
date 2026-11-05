@@ -6,6 +6,7 @@ import json
 import sys
 
 from . import __version__
+from .mmlu_pro.run import DEFAULT_CONCURRENCY
 
 
 def _print(obj) -> None:
@@ -65,7 +66,7 @@ def _cmd_prepare(a):
 def _cmd_run(a):
     from .mmlu_pro.run import run
     s = run(a.plan, a.output, a.base_url, a.served_model, a.concurrency, a.timeout, a.limit, a.resume,
-            a.api_key_env, a.allow_legacy_plan, log=lambda m: print(m, flush=True))
+            a.api_key_env, a.allow_legacy_plan, a.expected_concurrency, log=lambda m: print(m, flush=True))
     _print(s)
     if s["transport_failures"]:
         sys.exit("transport failures present (kept, scored incorrect) - inspect requests/*.json")
@@ -168,7 +169,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--base-url", default="http://127.0.0.1:8000")
     s.add_argument("--served-model", required=True)
     s.add_argument("--output", required=True)
-    s.add_argument("--concurrency", type=int, default=16)
+    s.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help="requests kept in flight (default: %d)"
+                   % DEFAULT_CONCURRENCY)
+    s.add_argument("--expected-concurrency", type=int,
+                   help="optional: the concurrency this run was planned for; a different --concurrency is then "
+                        "recorded in run.<ts>.<seq>.json -> deviations (default: not checked)")
     s.add_argument("--timeout", type=int, default=1800)
     s.add_argument("--limit", type=int, help="smoke test: first N cases only (not a score)")
     s.add_argument("--resume", action="store_true")

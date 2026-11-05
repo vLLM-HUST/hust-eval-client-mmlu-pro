@@ -3,7 +3,10 @@
 This is a pure client: streaming POST /v1/completions with the frozen token IDs of a plan, no retries (a failed
 request stays in the denominator and is scored incorrect), scoring with `scoring.score_results`.
 
-Deviation recorded in run.<ts>.json: concurrency is configurable, while the frozen plan declares 1.
+Deviations recorded in run.<ts>.<seq>.json are structured ({field, expected, actual, source}), never free text:
+the actual concurrency when it differs from an explicitly requested target, and concurrency drift between resumed
+invocations of the same run. The plan does not declare concurrency - a frozen artifact cannot enforce how many
+requests a client keeps in flight - so the run record is where a run condition belongs.
 """
 from __future__ import annotations
 
@@ -22,6 +25,8 @@ from . import plan as plan_mod
 from . import scoring
 
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+DEFAULT_CONCURRENCY = 16   # client-side default only; the plan deliberately says nothing about concurrency
 
 
 def one_request(base_url: str, model: str, case: dict, gen: dict, timeout: int, api_key: Optional[str] = None) -> dict:
@@ -73,11 +78,14 @@ def one_request(base_url: str, model: str, case: dict, gen: dict, timeout: int, 
 
 
 def run(plan: str, output: str, base_url: str = "http://127.0.0.1:8000",
-        served_model: str = "model", concurrency: int = 16, timeout: int = 1800, limit: Optional[int] = None,
-        resume: bool = False, api_key_env: Optional[str] = None, allow_legacy: bool = False, log=print) -> dict:
+        served_model: str = "model", concurrency: int = DEFAULT_CONCURRENCY, timeout: int = 1800,
+        limit: Optional[int] = None, resume: bool = False, api_key_env: Optional[str] = None,
+        allow_legacy: bool = False, expected_concurrency: Optional[int] = None, log=print) -> dict:
     api_key = os.environ.get(api_key_env) if api_key_env else None
     if api_key_env and not api_key:
         raise RuntimeError("environment variable %s is not set" % api_key_env)
+    if concurrency < 1:
+        raise ValueError("concurrency must be >= 1")
 
     contract, cases = plan_mod.load_plan(Path(plan), allow_legacy=allow_legacy)  # scorer, file and prompt hashes
     gen = contract["generation"]
@@ -88,20 +96,33 @@ def run(plan: str, output: str, base_url: str = "http://127.0.0.1:8000",
         raise FileExistsError("output exists; use a new directory (or resume=True to continue the same run)")
     (out / "requests").mkdir(parents=True, exist_ok=True)
 
+    deviations = []
+    if expected_concurrency is not None and concurrency != expected_concurrency:
+        deviations.append({"field": "concurrency", "expected": expected_concurrency, "actual": concurrency,
+                           "source": "--expected-concurrency"})
+    resumed_from = sorted(out.glob("run.*.json"))
+    for prev in resumed_from:   # one run directory must not silently mix two run conditions
+        p = json.loads(prev.read_text())
+        if p.get("concurrency") is not None and p["concurrency"] != concurrency:
+            deviations.append({"field": "concurrency", "expected": p["concurrency"], "actual": concurrency,
+                               "source": "earlier invocation " + prev.name})
+
     meta = {
         "tool": "hust-eval-mmlu-pro %s" % __version__,
         "runner_sha256": sha256_file(__file__),
         "scorer_sha256": sha256_file(scoring.__file__),
         "legacy_plan": bool(contract.get("_legacy_plan")),
         "contract_sha256": sha256_file(Path(plan) / "contract.json"),
-        "concurrency": concurrency, "upstream_concurrency": gen.get("concurrency"), "generation": gen,
+        "concurrency": concurrency, "expected_concurrency": expected_concurrency, "generation": gen,
         "base_url": base_url, "served_model": served_model, "n_cases": len(cases), "limit": limit,
         "resume": resume, "started_unix": time.time(),
-        "deviations": ["concurrency differs from contract.generation.concurrency"],
+        "deviations": deviations,
     }
     if limit:
         meta["WARNING"] = "smoke test only - not a score"
-    (out / ("run.%d.json" % int(time.time()))).write_text(json.dumps(meta, indent=1))
+    # the sequence keeps two invocations within the same second apart; names still sort chronologically
+    meta_path = out / ("run.%d.%03d.json" % (int(time.time()), len(resumed_from) + 1))
+    meta_path.write_text(json.dumps(meta, indent=1))
 
     done, lock, todo = {}, threading.Lock(), []
     for c in cases:

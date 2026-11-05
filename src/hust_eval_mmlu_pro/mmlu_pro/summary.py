@@ -78,11 +78,22 @@ def build_report(plan: str, accuracy_dir: str, bench_json: Optional[str] = None,
     }
     runs = sorted(glob.glob(os.path.join(accuracy_dir, "run.*.json")))
     if runs:
-        with open(runs[0]) as f:
-            meta = json.load(f)
-        report["run_meta"] = {k: meta.get(k) for k in ("concurrency", "upstream_concurrency", "generation", "n_cases",
+        metas = []
+        for fn in runs:
+            with open(fn) as f:
+                metas.append(json.load(f))
+        meta = metas[0]   # the invocation that started the run; any later one is a --resume
+        report["run_meta"] = {k: meta.get(k) for k in ("concurrency", "expected_concurrency", "generation", "n_cases",
                                                       "runner_sha256", "scorer_sha256", "adapter_sha256",
-                                                      "contract_sha256", "deviations")}
+                                                      "contract_sha256")}
+        report["run_meta"]["invocations"] = len(metas)
+        # deviations live in the invocation that saw them, so a resumed run must not hide them
+        deviations = []
+        for m in metas:
+            for d in m.get("deviations") or []:
+                if d not in deviations:
+                    deviations.append(d)
+        report["run_meta"]["deviations"] = deviations
     if bench_json and os.path.exists(bench_json):
         with open(bench_json) as f:
             b = json.load(f)

@@ -129,8 +129,10 @@ def write_plan(output, inventory: List[dict], cases: List[dict], extra: Optional
                   "no random guessing",
         "scorer_sha256": sha256_file(scoring.__file__),
         "prompt_builder_sha256": sha256_file(prompt_mod.__file__),
+        # what a request must contain and how it must be treated; concurrency is NOT here, it is a property of a
+        # run (it cannot be enforced by the plan), so it is recorded in run.<ts>.<seq>.json instead
         "generation": {"temperature": 0, "seed": 17, "thinking": False, "max_tokens": max_output, "stop": None,
-                       "retries": 0, "concurrency": 1, "tools": [], "truncation": "reject"},
+                       "retries": 0, "tools": [], "truncation": "reject"},
         "prompt_contract": "reference five-shot CoT text wrapped in the model chat template, thinking disabled; "
                            "all five shots kept; no 'Question:' stop string; over-long prompts rejected",
         "files_sha256": {name: sha256_file(out / name) for name in PLAN_FILES},
@@ -171,7 +173,11 @@ def load_instruction(reference) -> str:
 
 def prepare(assets, model_path, reference, output, runtime_contract: Optional[str] = None,
             per_category: Optional[int] = None) -> dict:
-    """Freeze a plan from the pinned dataset files. Full test set unless per_category is given."""
+    """Freeze a plan from the pinned dataset files. Full test set unless per_category is given.
+
+    The plan describes what is evaluated (prompts, gold answers, limits, scorer) and the request parameters, but
+    not run conditions such as concurrency, which a plan cannot enforce; those live in the run's own record.
+    """
     from transformers import AutoTokenizer  # optional dependency
 
     model_path = Path(model_path)

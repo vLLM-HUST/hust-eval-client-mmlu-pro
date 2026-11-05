@@ -115,6 +115,14 @@ reproducible) and `contract.json` with the SHA-256 of those three files **and of
 re-checks all of it, so the scorer cannot change silently between freezing a plan and scoring a run, and a
 modified prompt or file is refused.
 
+`contract.generation` holds only what a request must carry and how output must be treated (temperature, seed,
+max_tokens, retries, truncation). Run conditions are deliberately absent: a plan cannot enforce how many requests a
+client keeps in flight, so `contract_sha256` stays a statement about the evaluation and the run records the
+condition it actually ran under. Concurrency lives in `run.<ts>.<seq>.json` next to `expected_concurrency`; pass
+`--expected-concurrency N` to have a differing `--concurrency` written into `deviations` as a structured
+`{field, expected, actual, source}` entry. A resumed run that changes concurrency is always recorded, whether or not
+a target was given.
+
 Plans frozen by the earlier upstream adapter (`contract_version: pyramidkv-mmlu-pro-subset-v1`) load only with
 `--allow-legacy-plan`; the scorer-integrity check cannot be applied to them and the reports say so
 (`legacy_plan: true`).
